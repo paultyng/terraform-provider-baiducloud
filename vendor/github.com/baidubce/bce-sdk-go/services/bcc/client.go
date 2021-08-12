@@ -201,6 +201,20 @@ func (c *Client) DeleteInstance(instanceId string) error {
 	return api.DeleteInstance(c, instanceId)
 }
 
+// AutoReleaseInstance - set releaseTime of a postpay instance
+//
+// PARAMS:
+//     - instanceId: the specific instance ID
+//     - releaseTime: an UTC string，eg:"2021-05-01T07:58:09Z"
+// RETURNS:
+//     - error: nil if success otherwise the specific error
+func (c *Client) AutoReleaseInstance(instanceId string, releaseTime string) error {
+	args := &api.AutoReleaseArgs{
+		ReleaseTime:	releaseTime,
+	}
+	return api.AutoReleaseInstance(c, instanceId, args)
+}
+
 // ResizeInstance - resize a specific instance
 //
 // PARAMS:
@@ -942,6 +956,18 @@ func (c *Client) RemoteCopyImage(imageId string, args *api.RemoteCopyImageArgs) 
 	return api.RemoteCopyImage(c, imageId, args)
 }
 
+
+// RemoteCopyImageReturnImageIds - copy an image from other region
+//
+// PARAMS:
+//     - imageId: the specific image ID
+//     - args: the arguments to remote copy an image
+// RETURNS:
+//     - imageIds of destination region if success otherwise the specific error
+func (c *Client) RemoteCopyImageReturnImageIds(imageId string, args *api.RemoteCopyImageArgs) (*api.RemoteCopyImageResult, error) {
+	return api.RemoteCopyImageReturnImageIds(c, imageId, args)
+}
+
 // CancelRemoteCopyImage - cancel a copy image from other region operation
 //
 // PARAMS:
@@ -1239,17 +1265,17 @@ func (c *Client) GetDeploySet(deploySetId string) (*api.DeploySetResult, error) 
 //     - args: the arguments to update deployset and instance relation
 // RETURNS:
 //     - error: nil if success otherwise the specific error
-//func (c *Client) UpdateInstanceDeploySet(args *api.UpdateInstanceDeployArgs) (error, error) {
-//	jsonBytes, jsonErr := json.Marshal(args)
-//	if jsonErr != nil {
-//		return nil, jsonErr
-//	}
-//	body, err := bce.NewBodyFromBytes(jsonBytes)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return api.UpdateInstanceDeploy(c, args.ClientToken, body), nil
-//}
+func (c *Client) UpdateInstanceDeploySet(args *api.UpdateInstanceDeployArgs) (error, error) {
+	jsonBytes, jsonErr := json.Marshal(args)
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+	body, err := bce.NewBodyFromBytes(jsonBytes)
+	if err != nil {
+		return nil, err
+	}
+	return api.UpdateInstanceDeploy(c, args.ClientToken, body), nil
+}
 
 // DelInstanceDeploySet - delete deployset and instance relation
 //
@@ -1257,17 +1283,17 @@ func (c *Client) GetDeploySet(deploySetId string) (*api.DeploySetResult, error) 
 //     - args: the arguments to delete deployset and instance relation
 // RETURNS:
 //     - error: nil if success otherwise the specific error
-//func (c *Client) DelInstanceDeploySet(args *api.DelInstanceDeployArgs) (error, error) {
-//	jsonBytes, jsonErr := json.Marshal(args)
-//	if jsonErr != nil {
-//		return nil, jsonErr
-//	}
-//	body, err := bce.NewBodyFromBytes(jsonBytes)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return api.DelInstanceDeploy(c, args.ClientToken, body), nil
-//}
+func (c *Client) DelInstanceDeploySet(args *api.DelInstanceDeployArgs) (error, error) {
+	jsonBytes, jsonErr := json.Marshal(args)
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+	body, err := bce.NewBodyFromBytes(jsonBytes)
+	if err != nil {
+		return nil, err
+	}
+	return api.DelInstanceDeploy(c, args.ClientToken, body), nil
+}
 
 // ResizeInstanceBySpec - resize a specific instance
 //
@@ -1513,6 +1539,15 @@ func (c *Client) GetAllStocks() (*api.GetAllStocksResult, error) {
 	return api.GetAllStocks(c)
 }
 
+// GetStockWithDeploySet - get the bcc's stock with deploySet
+//
+// RETURNS:
+//     - *GetStockWithDeploySetResults: the result of the bcc's stock
+//     - error: nil if success otherwise the specific error
+func (c *Client) GetStockWithDeploySet(args *api.GetStockWithDeploySetArgs) (*api.GetStockWithDeploySetResults, error) {
+	return api.GetStockWithDeploySet(c, args)
+}
+
 func (c *Client) GetInstanceCreateStock(args *api.CreateInstanceStockArgs) (*api.InstanceStockResult, error) {
 	return api.GetInstanceCreateStock(c, args)
 }
@@ -1559,4 +1594,8 @@ func (c *Client) BatchDeleteAutoRenewRules(args *api.BccDeleteAutoRenewArgs) err
 
 func (c *Client) DeleteInstanceIngorePayment(args *api.DeleteInstanceIngorePaymentArgs) (*api.DeleteInstanceResult, error) {
 	return api.DeleteInstanceIngorePayment(c, args)
+}
+
+func (c *Client) ListInstanceByInstanceIds(args *api.ListInstanceByInstanceIdArgs) (*api.ListInstancesResult, error) {
+	return api.ListInstanceByInstanceIds(c, args)
 }

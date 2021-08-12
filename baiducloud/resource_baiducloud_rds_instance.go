@@ -140,6 +140,32 @@ func resourceBaiduCloudRdsInstance() *schema.Resource {
 					},
 				},
 			},
+			"security_ips": {
+				Type:        schema.TypeList,
+				Description: "Security ip list",
+				Optional:    true,
+				Computed:    true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"parameters": {
+				Type: schema.TypeList,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"value": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+					},
+				},
+				Optional: true,
+				Computed: true,
+			},
 			"zone_names": {
 				Type:        schema.TypeList,
 				Description: "Zone name list",
@@ -296,11 +322,21 @@ func resourceBaiduCloudRdsInstanceCreate(d *schema.ResourceData, meta interface{
 		return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds_instance", action, BCESDKGoERROR)
 	}
 
+	// set instance parameters
+	if err := updateRdsParameters(d, meta, d.Id()); err != nil {
+		return err
+	}
+	// update instance security ips
+	if err := updateRdsSecurityIps(d, meta, d.Id()); err != nil {
+		return err
+	}
+
 	return resourceBaiduCloudRdsInstanceRead(d, meta)
 }
 
 func resourceBaiduCloudRdsInstanceRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*connectivity.BaiduClient)
+	rdsService := RdsService{client}
 
 	instanceID := d.Id()
 	action := "Query RDS Instance " + instanceID
@@ -343,20 +379,13 @@ func resourceBaiduCloudRdsInstanceRead(d *schema.ResourceData, meta interface{})
 	d.Set("address", result.Endpoint.Address)
 	d.Set("v_net_ip", result.Endpoint.VnetIp)
 	d.Set("volume_capacity", result.VolumeCapacity)
-	d.Set("subnets", transRdsSubnetsToSchema(result.Subnets))
+	d.Set("subnets", rdsService.TransRdsSubnetsToSchema(result.Subnets))
 
-	return nil
-}
-
-func transRdsSubnetsToSchema(subnets []rds.Subnet) []map[string]string {
-	subnetList := []map[string]string{}
-	for _, subnet := range subnets {
-		subnetMap := make(map[string]string)
-		subnetMap["subnet_id"] = subnet.SubnetId
-		subnetMap["zone_name"] = subnet.ZoneName
-		subnetList = append(subnetList, subnetMap)
+	ipResult, err := rdsService.ListSecurityIps(instanceID)
+	if err == nil {
+		d.Set("security_ips", ipResult.SecurityIps)
 	}
-	return subnetList
+	return nil
 }
 
 func resourceBaiduCloudRdsInstanceUpdate(d *schema.ResourceData, meta interface{}) error {
@@ -366,6 +395,16 @@ func resourceBaiduCloudRdsInstanceUpdate(d *schema.ResourceData, meta interface{
 
 	// resize instance
 	if err := resizeRds(d, meta, instanceID); err != nil {
+		return err
+	}
+
+	// update instance parameters
+	if err := updateRdsParameters(d, meta, instanceID); err != nil {
+		return err
+	}
+
+	// update instance security ips
+	if err := updateRdsSecurityIps(d, meta, instanceID); err != nil {
 		return err
 	}
 
@@ -534,5 +573,68 @@ func resizeRds(d *schema.ResourceData, meta interface{}, instanceID string) erro
 		d.SetPartial("volume_capacity")
 	}
 
+	return nil
+}
+
+func updateRdsParameters(d *schema.ResourceData, meta interface{}, instanceID string) error {
+	action := "Update rds parameters for " + instanceID
+	client := meta.(*connectivity.BaiduClient)
+	rdsService := RdsService{client}
+	if d.HasChange("parameters") {
+		result, err := rdsService.ListParameters(instanceID)
+		if err != nil {
+			return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds_instance", action, BCESDKGoERROR)
+		}
+		_, n := d.GetChange("parameters")
+		parameters := n.([]interface{})
+		kvparams := make([]rds.KVParameter, 0)
+		for _, param := range parameters {
+			paramMap := param.(map[string]interface{})
+			kvparams = append(kvparams, rds.KVParameter{
+				Name:  paramMap["name"].(string),
+				Value: paramMap["value"].(string),
+			})
+		}
+		args := &rds.UpdateParameterArgs{
+			Parameters: kvparams,
+		}
+		_, er := client.WithRdsClient(func(rdsClient *rds.Client) (i interface{}, e error) {
+			return nil, rdsClient.UpdateParameter(instanceID, result.Etag, args)
+		})
+		if er != nil {
+			return WrapErrorf(er, DefaultErrorMsg, "baiducloud_rds_instance", action, BCESDKGoERROR)
+		}
+		d.SetPartial("parameters")
+
+	}
+	return nil
+}
+
+func updateRdsSecurityIps(d *schema.ResourceData, meta interface{}, instanceID string) error {
+	action := "Update rds security ips for " + instanceID
+	client := meta.(*connectivity.BaiduClient)
+	rdsService := RdsService{client}
+	if d.HasChange("security_ips") {
+		result, err := rdsService.ListSecurityIps(instanceID)
+		if err != nil {
+			return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds_instance", action, BCESDKGoERROR)
+		}
+		_, n := d.GetChange("security_ips")
+		ips := n.([]interface{})
+		ipsStr := make([]string, len(ips))
+		for i, v := range ips {
+			ipsStr[i] = v.(string)
+		}
+		args := &rds.UpdateSecurityIpsArgs{
+			SecurityIps: ipsStr,
+		}
+		_, er := client.WithRdsClient(func(rdsClient *rds.Client) (i interface{}, e error) {
+			return nil, rdsClient.UpdateSecurityIps(instanceID, result.Etag, args)
+		})
+		if er != nil {
+			return WrapErrorf(er, DefaultErrorMsg, "baiducloud_rds_instance", action, BCESDKGoERROR)
+		}
+		d.SetPartial("security_ips")
+	}
 	return nil
 }

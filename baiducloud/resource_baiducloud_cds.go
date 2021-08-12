@@ -291,7 +291,15 @@ func resourceBaiduCloudCDSUpdate(d *schema.ResourceData, meta interface{}) error
 			return Error("Cds only support scaling size, old size should bigger than new size")
 		}
 
-		if err := bccService.ResizeCDSVolume(id, newSize); err != nil {
+		storageType := api.StorageTypeHP1
+		if d.HasChange("storage_type") {
+			_, n := d.GetChange("disk_size_in_gb")
+			storageType = api.StorageType(n.(string))
+		} else if v, ok := d.GetOk("storage_type"); ok && v.(string) != "" {
+			storageType = api.StorageType(v.(string))
+		}
+
+		if err := bccService.ResizeCDSVolume(id, newSize, storageType); err != nil {
 			return WrapError(err)
 		}
 

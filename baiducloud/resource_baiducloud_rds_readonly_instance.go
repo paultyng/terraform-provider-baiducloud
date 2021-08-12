@@ -287,7 +287,7 @@ func resourceBaiduCloudRdsReadOnlyInstanceCreate(d *schema.ResourceData, meta in
 
 func resourceBaiduCloudRdsReadOnlyInstanceRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*connectivity.BaiduClient)
-
+	rdsService := RdsService{client}
 	instanceID := d.Id()
 	action := "Query RDS Instance " + instanceID
 
@@ -330,7 +330,7 @@ func resourceBaiduCloudRdsReadOnlyInstanceRead(d *schema.ResourceData, meta inte
 	d.Set("port", result.Endpoint.Port)
 	d.Set("address", result.Endpoint.Address)
 	d.Set("v_net_ip", result.Endpoint.VnetIp)
-	d.Set("subnets", transRdsSubnetsToSchema(result.Subnets))
+	d.Set("subnets", rdsService.TransRdsSubnetsToSchema(result.Subnets))
 
 	return nil
 }

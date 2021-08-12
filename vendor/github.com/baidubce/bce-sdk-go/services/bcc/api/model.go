@@ -23,17 +23,17 @@ import (
 type InstanceStatus string
 
 const (
-	InstanceStatusRunning            	InstanceStatus = "Running"
-	InstanceStatusStarting           	InstanceStatus = "Starting"
-	InstanceStatusStopping           	InstanceStatus = "Stopping"
-	InstanceStatusStopped            	InstanceStatus = "Stopped"
-	InstanceStatusDeleted            	InstanceStatus = "Deleted"
-	InstanceStatusScaling            	InstanceStatus = "Scaling"
-	InstanceStatusExpired            	InstanceStatus = "Expired"
-	InstanceStatusError              	InstanceStatus = "Error"
-	InstanceStatusSnapshotProcessing 	InstanceStatus = "SnapshotProcessing"
-	InstanceStatusImageProcessing    	InstanceStatus = "ImageProcessing"
-	InstanceStatusChangeVpcProcessing   InstanceStatus = "ChangeVpc"
+	InstanceStatusRunning             InstanceStatus = "Running"
+	InstanceStatusStarting            InstanceStatus = "Starting"
+	InstanceStatusStopping            InstanceStatus = "Stopping"
+	InstanceStatusStopped             InstanceStatus = "Stopped"
+	InstanceStatusDeleted             InstanceStatus = "Deleted"
+	InstanceStatusScaling             InstanceStatus = "Scaling"
+	InstanceStatusExpired             InstanceStatus = "Expired"
+	InstanceStatusError               InstanceStatus = "Error"
+	InstanceStatusSnapshotProcessing  InstanceStatus = "SnapshotProcessing"
+	InstanceStatusImageProcessing     InstanceStatus = "ImageProcessing"
+	InstanceStatusChangeVpcProcessing InstanceStatus = "ChangeVpc"
 )
 
 type InstanceType string
@@ -109,6 +109,7 @@ type InstanceModel struct {
 	PaymentTiming         string                 `json:"paymentTiming"`
 	CreationTime          string                 `json:"createTime"`
 	ExpireTime            string                 `json:"expireTime"`
+	ReleaseTime           string                 `json:"releaseTime"`
 	PublicIP              string                 `json:"publicIp"`
 	InternalIP            string                 `json:"internalIp"`
 	CpuCount              int                    `json:"cpuCount"`
@@ -302,6 +303,15 @@ type ResizeInstanceStockArgs struct {
 	InstanceId         string          `json:"instanceId"`
 }
 
+type GetStockWithDeploySetArgs struct {
+	Spec         string   `json:"spec"`
+	DeploySetIds []string `json:"deploySetIds"`
+}
+
+type GetStockWithDeploySetResults struct {
+	BccStocks []BccStock `json:"bccStocks"`
+}
+
 type InstanceStockResult struct {
 	FlaovrId string `json:"flavorId"`
 	Count    int    `json:"Count"`
@@ -391,6 +401,7 @@ type CreateInstanceV3Args struct {
 	AutoSnapshotPolicyId  string                `json:"autoSnapshotPolicyId,omitempty"`
 	PrivateIpAddresses    []string              `json:"privateIpAddresses,omitempty"`
 	DeploymentSetId       string                `json:"deploymentSetId,omitempty"`
+	DeployIdList          []string              `json:"deployIdList"`
 	ImageId               string                `json:"imageId,omitempty"`
 	UserData              string                `json:"userData,omitempty"`
 	InstanceMarketOptions InstanceMarketOptions `json:"instanceMarketOptions,omitempty"`
@@ -494,6 +505,10 @@ type ModifyInstanceHostnameArgs struct {
 
 type GetInstanceDetailResult struct {
 	Instance InstanceModel `json:"instance"`
+}
+
+type AutoReleaseArgs struct {
+	ReleaseTime			string 	 `json:"releaseTime"`
 }
 
 type ResizeInstanceArgs struct {
@@ -1009,6 +1024,17 @@ type RemoteCopyImageArgs struct {
 	DestRegion []string `json:"destRegion"`
 }
 
+type RemoteCopyImageResult struct {
+	RemoteCopyImages []RemoteCopyImageModel `json:"result"`
+}
+
+type RemoteCopyImageModel struct {
+	Region  string `json:"region"`
+	ImageId string `json:"imageId"`
+	ErrMsg  string `json:"errMsg"`
+	Code    string `json:"code"`
+}
+
 type CreateImageArgs struct {
 	InstanceId  string `json:"instanceId,omitempty"`
 	SnapshotId  string `json:"snapshotId,omitempty"`
@@ -1021,6 +1047,7 @@ type ListImageArgs struct {
 	Marker    string
 	MaxKeys   int
 	ImageType string
+	ImageName string
 }
 
 type OsModel struct {
@@ -1500,4 +1527,18 @@ type RecoveryInstanceArgs struct {
 
 type RecoveryInstanceModel struct {
 	InstanceId string `json:"instanceId"`
+}
+
+type ListInstanceByInstanceIdArgs struct {
+	Marker      string
+	MaxKeys     int
+	InstanceIds []string `json:"instanceIds"`
+}
+
+type ListInstancesResult struct {
+	Marker      string          `json:"marker"`
+	IsTruncated bool            `json:"isTruncated"`
+	NextMarker  string          `json:"nextMarker"`
+	MaxKeys     int             `json:"maxKeys"`
+	Instances   []InstanceModel `json:"instances"`
 }

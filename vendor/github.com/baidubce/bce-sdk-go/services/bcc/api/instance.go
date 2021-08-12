@@ -393,6 +393,42 @@ func DeleteInstanceIngorePayment(cli bce.Client, args *DeleteInstanceIngorePayme
 	return jsonBody, nil
 }
 
+// AutoReleaseInstance - set releaseTime of a postpay instance
+//
+// PARAMS:
+//     - cli: the client agent which can perform sending request
+//     - instanceId: the specific instance ID
+//     - args: the arguments to auto release instance
+// RETURNS:
+//     - error: nil if success otherwise the specific error
+func AutoReleaseInstance(cli bce.Client, instanceId string, args *AutoReleaseArgs) error {
+	// Build the request
+	req := &bce.BceRequest{}
+	req.SetUri(getInstanceUriWithId(instanceId))
+	req.SetMethod(http.PUT)
+	req.SetParam("autorelease", "")
+	jsonBytes, jsonErr := json.Marshal(args)
+	if jsonErr != nil {
+		return jsonErr
+	}
+	body, err := bce.NewBodyFromBytes(jsonBytes)
+	if err != nil {
+		return err
+	}
+	req.SetBody(body)
+	// Send request and get response
+	resp := &bce.BceResponse{}
+	if err := cli.SendRequest(req, resp); err != nil {
+		return err
+	}
+	if resp.IsFail() {
+		return resp.ServiceError()
+	}
+
+	defer func() { resp.Body().Close() }()
+	return nil
+}
+
 // ResizeInstance - resize a specified instance
 //
 // PARAMS:
@@ -1345,6 +1381,46 @@ func GetAllStocks(cli bce.Client) (*GetAllStocksResult, error) {
 	return jsonBody, nil
 }
 
+// GetStockWithDeploySet - get the bcc's stock with deploySet
+//
+// PARAMS:
+//     - cli: the client agent which can perform sending request
+//     - args: the arguments to get the bcc's stock with deploySet
+// RETURNS:
+//     - *GetAllStocksResult: the result of the bcc's stock
+//     - error: nil if success otherwise the specific error
+func GetStockWithDeploySet(cli bce.Client, args *GetStockWithDeploySetArgs) (*GetStockWithDeploySetResults, error) {
+	// Build the request
+	req := &bce.BceRequest{}
+	req.SetUri(getStockWithDeploySet())
+	req.SetMethod(http.POST)
+
+	jsonBytes, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
+	}
+	body, err := bce.NewBodyFromBytes(jsonBytes)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBody(body)
+
+	// Send request and get response
+	resp := &bce.BceResponse{}
+	if err := cli.SendRequest(req, resp); err != nil {
+		return nil, err
+	}
+	if resp.IsFail() {
+		return nil, resp.ServiceError()
+	}
+
+	jsonBody := &GetStockWithDeploySetResults{}
+	if err := resp.ParseJsonBody(jsonBody); err != nil {
+		return nil, err
+	}
+	return jsonBody, nil
+}
+
 func GetInstanceCreateStock(cli bce.Client, args *CreateInstanceStockArgs) (*InstanceStockResult, error) {
 	// Build the request
 	req := &bce.BceRequest{}
@@ -1431,4 +1507,54 @@ func BatchDeleteAutoRenewRules(cli bce.Client, reqBody *bce.Body) error {
 
 	defer func() { resp.Body().Close() }()
 	return nil
+}
+
+// ListInstanceByInstanceIds - list instance by instanceId
+//
+// PARAMS:
+//     - cli: the client agent which can perform sending request
+// RETURNS:
+//     - *ListInstancesResult: result of the instance list
+//     - error: nil if success otherwise the specific error
+func ListInstanceByInstanceIds(cli bce.Client, args *ListInstanceByInstanceIdArgs) (*ListInstancesResult, error) {
+	// Build the request
+	req := &bce.BceRequest{}
+	req.SetUri(getListInstancesByIdsUrl())
+	req.SetMethod(http.POST)
+
+	if args != nil {
+		if len(args.Marker) != 0 {
+			req.SetParam("marker", args.Marker)
+		}
+		if args.MaxKeys != 0 {
+			req.SetParam("maxKeys", strconv.Itoa(args.MaxKeys))
+		}
+	}
+	if args == nil || args.MaxKeys == 0 {
+		req.SetParam("maxKeys", "1000")
+	}
+	jsonBytes, err := json.Marshal(args)
+	if err != nil {
+		return nil, err
+	}
+	body, err := bce.NewBodyFromBytes(jsonBytes)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBody(body)
+
+	// Send request and get response
+	resp := &bce.BceResponse{}
+	if err := cli.SendRequest(req, resp); err != nil {
+		return nil, err
+	}
+	if resp.IsFail() {
+		return nil, resp.ServiceError()
+	}
+
+	jsonBody := &ListInstancesResult{}
+	if err := resp.ParseJsonBody(jsonBody); err != nil {
+		return nil, err
+	}
+	return jsonBody, nil
 }

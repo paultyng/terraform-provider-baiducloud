@@ -353,6 +353,13 @@ func resourceBaiduCloudInstance() *schema.Resource {
 				Computed:    true,
 				ForceNew:    true,
 			},
+			"instance_spec": {
+				Type:        schema.TypeString,
+				Description: "spec name of the instance.",
+				Optional:    true,
+				Computed:    true,
+				ForceNew:    true,
+			},
 			"keypair_name": {
 				Type:        schema.TypeString,
 				Description: "Key pair name of the instance.",
@@ -432,8 +439,13 @@ func resourceBaiduCloudInstanceCreate(d *schema.ResourceData, meta interface{}) 
 			return resource.NonRetryableError(err)
 		}
 		addDebug(action, raw)
-		response, _ := raw.(*api.CreateInstanceResult)
-		d.SetId(response.InstanceIds[0])
+		if createBySpec {
+			response, _ := raw.(*api.CreateInstanceBySpecResult)
+			d.SetId(response.InstanceIds[0])
+		} else {
+			response, _ := raw.(*api.CreateInstanceResult)
+			d.SetId(response.InstanceIds[0])
+		}
 		return nil
 	})
 	if err != nil {
@@ -531,7 +543,26 @@ func resourceBaiduCloudInstanceRead(d *schema.ResourceData, meta interface{}) er
 	d.Set("keypair_id", response.Instance.KeypairId)
 	d.Set("keypair_name", response.Instance.KeypairName)
 	d.Set("auto_renew", response.Instance.AutoRenew)
-
+	// set default flags for import resource
+	if _, ok := d.GetOk("auto_renew_time_length"); !ok {
+		d.Set("auto_renew_time_length", 1)
+	}
+	if _, ok := d.GetOk("related_release_flag"); !ok {
+		d.Set("related_release_flag", false)
+	}
+	if _, ok := d.GetOk("delete_cds_snapshot_flag"); !ok {
+		d.Set("delete_cds_snapshot_flag", false)
+	}
+	if _, ok := d.GetOk("cds_auto_renew"); !ok {
+		d.Set("cds_auto_renew", false)
+	}
+	if _, ok := d.GetOk("action"); !ok {
+		if response.Instance.Status == api.InstanceStatusStopped {
+			d.Set("action", "stop")
+		} else if response.Instance.Status == api.InstanceStatusRunning {
+			d.Set("action", "start")
+		}
+	}
 	raw, err = client.WithBccClient(func(bccClient *bcc.Client) (interface{}, error) {
 		args := &api.ListSecurityGroupArgs{
 			InstanceId: instanceID,
@@ -551,11 +582,12 @@ func resourceBaiduCloudInstanceRead(d *schema.ResourceData, meta interface{}) er
 	addDebug(action, sgIDs)
 	d.Set("security_groups", sgIDs)
 
-	// read ephemeral disks
-	ephVolumes, err := bccService.ListAllEphemeralVolumes(instanceID)
+	// read all cds disks
+	ephVolumes, cdsVolumes, sysVolumes, err := bccService.ListAllVolumesWithTypes(instanceID)
 	if err != nil {
 		return WrapErrorf(err, DefaultErrorMsg, "baiducloud_instance", action, BCESDKGoERROR)
 	}
+	// set ephemeral_disks
 	ephDisks := make([]interface{}, 0, len(ephVolumes))
 	for _, eph := range ephVolumes {
 		ephMap := make(map[string]interface{})
@@ -566,11 +598,20 @@ func resourceBaiduCloudInstanceRead(d *schema.ResourceData, meta interface{}) er
 	}
 	d.Set("ephemeral_disks", ephDisks)
 
-	// read system disks
-	sysVolume, err := bccService.GetSystemVolume(instanceID)
-	if err != nil {
+	cdsDisks := make([]interface{}, 0, len(cdsVolumes))
+	for _, cds := range cdsVolumes {
+		cdsMap := make(map[string]interface{})
+		cdsMap["size_in_gb"] = cds.DiskSizeInGB
+		cdsMap["storage_type"] = cds.StorageType
+		cdsDisks = append(cdsDisks, cdsMap)
+	}
+	d.Set("cds_disks", cdsDisks)
+
+	// set system disks
+	if len(sysVolumes) == 0 {
 		return WrapErrorf(err, DefaultErrorMsg, "baiducloud_instance", action, BCESDKGoERROR)
 	}
+	sysVolume := sysVolumes[0]
 	d.Set("root_disk_size_in_gb", sysVolume.DiskSizeInGB)
 	d.Set("root_disk_storage_type", sysVolume.StorageType)
 

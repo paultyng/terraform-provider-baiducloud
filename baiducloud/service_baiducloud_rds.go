@@ -67,6 +67,60 @@ func (s *RdsService) GetInstanceDetail(instanceID string) (*rds.Instance, error)
 	return result, nil
 }
 
+func (s *RdsService) ListParameters(instanceID string) (*rds.ListParametersResult, error) {
+	action := "Get RDS instance detail " + instanceID
+	raw, err := s.client.WithRdsClient(func(rdsClient *rds.Client) (interface{}, error) {
+		return rdsClient.ListParameters(instanceID)
+	})
+	addDebug(action, raw)
+	if err != nil {
+		return nil, WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds", action, BCESDKGoERROR)
+	}
+	if raw == nil {
+		return nil, WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds", action, BCESDKGoERROR)
+	}
+	result, _ := raw.(*rds.ListParametersResult)
+	return result, nil
+}
+
+func (s *RdsService) TransRdsParametersToSchema(parameters []rds.Parameter) []map[string]string {
+	paramList := []map[string]string{}
+	for _, param := range parameters {
+		paramMap := make(map[string]string)
+		paramMap["name"] = param.Name
+		paramMap["value"] = param.Value
+		paramList = append(paramList, paramMap)
+	}
+	return paramList
+}
+
+func (s *RdsService) TransRdsSubnetsToSchema(subnets []rds.Subnet) []map[string]string {
+	subnetList := []map[string]string{}
+	for _, subnet := range subnets {
+		subnetMap := make(map[string]string)
+		subnetMap["subnet_id"] = subnet.SubnetId
+		subnetMap["zone_name"] = subnet.ZoneName
+		subnetList = append(subnetList, subnetMap)
+	}
+	return subnetList
+}
+
+func (s *RdsService) ListSecurityIps(instanceID string) (*rds.GetSecurityIpsResult, error) {
+	action := "Get RDS instance detail " + instanceID
+	raw, err := s.client.WithRdsClient(func(rdsClient *rds.Client) (interface{}, error) {
+		return rdsClient.GetSecurityIps(instanceID)
+	})
+	addDebug(action, raw)
+	if err != nil {
+		return nil, WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds", action, BCESDKGoERROR)
+	}
+	if raw == nil {
+		return nil, WrapErrorf(err, DefaultErrorMsg, "baiducloud_rds", action, BCESDKGoERROR)
+	}
+	result, _ := raw.(*rds.GetSecurityIpsResult)
+	return result, nil
+}
+
 func (e *RdsService) FlattenRdsModelsToMap(rdss []rds.Instance) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(rdss))
 

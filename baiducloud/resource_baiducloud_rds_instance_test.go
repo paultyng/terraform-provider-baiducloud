@@ -131,6 +131,15 @@ resource "baiducloud_rds_instance" "default" {
     cpu_count                 = 1
     memory_capacity           = 1
     volume_capacity           = 5
+	security_ips 			  = ["192.168.1.1"]
+	parameters{
+		name  	= "connect_timeout"
+		value 	= "15"
+	}
+	parameters{
+		name  	= "lower_case_table_names"
+		value 	= "1"
+	}
 }
 `, name+"-rds")
 }
@@ -147,6 +156,15 @@ resource "baiducloud_rds_instance" "default" {
     cpu_count                 = 1
     memory_capacity           = 2
     volume_capacity           = 5
+	security_ips 			  = ["192.168.1.1","192.168.3.1"]
+	parameters{
+		name  	= "connect_timeout"
+		value 	= "100"
+	}
+	parameters{
+		name  	= "lower_case_table_names"
+		value 	= "1"
+	}
 }
 `, name+"-rds")
 }

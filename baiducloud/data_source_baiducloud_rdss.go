@@ -35,6 +35,26 @@ func dataSourceBaiduCloudRdss() *schema.Resource {
 				ForceNew:     true,
 				ValidateFunc: validateNameRegex,
 			},
+			"instance_id": {
+				Type:        schema.TypeString,
+				Description: "rds instance id",
+				Optional:    true,
+				ForceNew:    true,
+			},
+			"load_parameters": {
+				Type:        schema.TypeBool,
+				Description: "load parameters of instance , default false",
+				Optional:    true,
+				ForceNew:    true,
+				Default:     false,
+			},
+			"load_security_ips": {
+				Type:        schema.TypeBool,
+				Description: "load security_ips of instance , default false",
+				Optional:    true,
+				ForceNew:    true,
+				Default:     false,
+			},
 			"output_file": {
 				Type:        schema.TypeString,
 				Description: "Output file of the instances search result",
@@ -118,6 +138,30 @@ func dataSourceBaiduCloudRdss() *schema.Resource {
 								},
 							},
 						},
+						"security_ips": {
+							Type:        schema.TypeList,
+							Description: "Security ip list",
+							Computed:    true,
+							Elem: &schema.Schema{
+								Type: schema.TypeString,
+							},
+						},
+						"parameters": {
+							Type: schema.TypeList,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"name": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"value": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+								},
+							},
+							Computed: true,
+						},
 						"zone_names": {
 							Type:        schema.TypeList,
 							Description: "Zone name list",
@@ -198,10 +242,25 @@ func dataSourceBaiduCloudRdssRead(d *schema.ResourceData, meta interface{}) erro
 	rdsService := RdsService{client}
 
 	action := "List all rds instances"
+	rdsList := make([]rds.Instance, 0)
 	listArgs := &rds.ListRdsArgs{}
-	rdsList, err := rdsService.ListAllInstances(listArgs)
-	if err != nil {
-		return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rdss", action, BCESDKGoERROR)
+	if value, ok := d.GetOk("instance_id"); ok {
+		id := value.(string)
+		if len(id) > 0 {
+			instance, err := rdsService.GetInstanceDetail(id)
+			if err != nil {
+				return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rdss", action, BCESDKGoERROR)
+			} else {
+				rdsList = append(rdsList, *instance)
+			}
+		}
+	} else {
+		allList, err := rdsService.ListAllInstances(listArgs)
+		if err != nil {
+			return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rdss", action, BCESDKGoERROR)
+		} else {
+			rdsList = allList
+		}
 	}
 
 	var nameRegex string
@@ -215,13 +274,22 @@ func dataSourceBaiduCloudRdssRead(d *schema.ResourceData, meta interface{}) erro
 	}
 
 	rdsMap := make([]map[string]interface{}, 0, len(rdsList))
+	load_parameters := false
+	if value, ok := d.GetOk("load_parameters"); ok {
+		load_parameters = value.(bool)
+	}
+	load_security_ips := false
+	if value, ok := d.GetOk("load_security_ips"); ok {
+		load_security_ips = value.(bool)
+	}
 	for _, e := range rdsList {
 		if len(nameRegex) > 0 && specNameRegex != nil {
 			if !specNameRegex.MatchString(e.InstanceName) {
 				continue
 			}
 		}
-		rdsMap = append(rdsMap, map[string]interface{}{
+
+		instance := map[string]interface{}{
 			"instance_id":        e.InstanceId,
 			"instance_name":      e.InstanceName,
 			"instance_status":    e.InstanceStatus,
@@ -244,22 +312,36 @@ func dataSourceBaiduCloudRdssRead(d *schema.ResourceData, meta interface{}) erro
 			"instance_type":      e.InstanceType,
 			"payment_timing":     e.PaymentTiming,
 			"zone_names":         e.ZoneNames,
-		})
+			"vpc_id":             e.VpcId,
+			"subnets":            rdsService.TransRdsSubnetsToSchema(e.Subnets),
+		}
+
+		if load_parameters {
+			paramResult, err := rdsService.ListParameters(e.InstanceId)
+			if err == nil {
+				instance["parameters"] = rdsService.TransRdsParametersToSchema(paramResult.Parameters)
+			}
+		}
+		if load_security_ips {
+			ipResult, err := rdsService.ListSecurityIps(e.InstanceId)
+			if err == nil {
+				instance["security_ips"] = ipResult.SecurityIps
+			}
+		}
+		rdsMap = append(rdsMap, instance)
 	}
 
 	FilterDataSourceResult(d, &rdsMap)
 
 	addDebug("List filtered rds instances", rdsMap)
-	if err = d.Set("rdss", rdsMap); err != nil {
+	if err := d.Set("rdss", rdsMap); err != nil {
 		return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rdss", action, BCESDKGoERROR)
 	}
 	d.SetId(resource.UniqueId())
-
 	if v, ok := d.GetOk("output_file"); ok && v.(string) != "" {
 		if err := writeToFile(v.(string), rdsMap); err != nil {
 			return WrapErrorf(err, DefaultErrorMsg, "baiducloud_rdss", action, BCESDKGoERROR)
 		}
 	}
-
 	return nil
 }

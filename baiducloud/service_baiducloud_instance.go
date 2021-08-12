@@ -75,6 +75,29 @@ func (s *BccService) GetInstanceDetail(instanceID string) (*api.InstanceModel, e
 	return &result.Instance, nil
 }
 
+/**
+*	get all disks include  Ephemeral volumes,Cds volumes and System volumes
+ */
+func (s *BccService) ListAllVolumesWithTypes(instanceId string) ([]api.VolumeModel, []api.VolumeModel, []api.VolumeModel, error) {
+	allVolumes, err := s.ListAllVolumes(instanceId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// read all disks
+	ephVolumes := make([]api.VolumeModel, 0)
+	sysVolumes := make([]api.VolumeModel, 0)
+	cdsVolumes := make([]api.VolumeModel, 0)
+	for _, vol := range allVolumes {
+		if vol.Type == api.VolumeTypeEPHEMERAL {
+			ephVolumes = append(ephVolumes, vol)
+		} else if vol.Type == api.VolumeTypeSYSTEM {
+			sysVolumes = append(sysVolumes, vol)
+		} else if vol.Type == api.VolumeTypeCDS {
+			cdsVolumes = append(cdsVolumes, vol)
+		}
+	}
+	return ephVolumes, cdsVolumes, sysVolumes, nil
+}
 func (s *BccService) ListAllVolumes(instanceId string) ([]api.VolumeModel, error) {
 	args := &api.ListCDSVolumeArgs{
 		InstanceId: instanceId,
@@ -143,24 +166,17 @@ func (s *BccService) FlattenInstanceModelToMap(instances []api.InstanceModel) ([
 	result := make([]map[string]interface{}, 0, len(instances))
 
 	for _, inst := range instances {
-		// read ephemeral disks
-		ephVolumes, err := s.ListAllEphemeralVolumes(inst.InstanceId)
-		if err != nil {
-			return nil, err
-		}
-		ephDisks := make([]interface{}, 0, len(ephVolumes))
-		for _, eph := range ephVolumes {
-			ephMap := make(map[string]interface{})
-			ephMap["size_in_gb"] = eph.DiskSizeInGB
-			ephMap["storage_type"] = eph.StorageType
-			ephDisks = append(ephDisks, ephMap)
-		}
 
-		// read system disks
-		sysVolume, err := s.GetSystemVolume(inst.InstanceId)
+		// read all disks
+		ephVolumes, cdsVolumes, sysVolumes, err := s.ListAllVolumesWithTypes(inst.InstanceId)
 		if err != nil {
 			return nil, err
 		}
+		// set system disks
+		if len(sysVolumes) == 0 {
+			return nil, Error("System volume is missing")
+		}
+		sysVolume := sysVolumes[0]
 
 		result = append(result, map[string]interface{}{
 			"instance_id":              inst.InstanceId,
@@ -184,7 +200,9 @@ func (s *BccService) FlattenInstanceModelToMap(instances []api.InstanceModel) ([
 			"zone_name":                inst.ZoneName,
 			"subnet_id":                inst.SubnetId,
 			"vpc_id":                   inst.VpcId,
-			"ephemeral_disks":          ephDisks,
+			"ephemeral_disks":          s.FlattenCDSVolumeModelToMapForInstance(ephVolumes),
+			"cds_disks":                s.FlattenCDSVolumeModelToMapForInstance(cdsVolumes),
+			"system_disks":             s.FlattenCDSVolumeModelToMapForInstance(sysVolumes),
 			"root_disk_size_in_gb":     sysVolume.DiskSizeInGB,
 			"root_disk_storage_type":   sysVolume.StorageType,
 			"dedicated_host_id":        inst.DedicatedHostId,
